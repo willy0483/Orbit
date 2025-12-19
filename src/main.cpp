@@ -25,7 +25,6 @@ int main()
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-	// GLFW window creation
 	GLFWwindow* window = glfwCreateWindow(width, height, "Orbit", NULL, NULL);
 	if(window == NULL)
 	{
@@ -49,7 +48,6 @@ int main()
 	{
 		processInput(window);
 
-		// clear color buffer
 		glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT);
 
@@ -63,7 +61,6 @@ int main()
 	return 0;
 }
 
-// process all input
 void processInput(GLFWwindow* window)
 {
 	if(glfwGetKey(window, GLFW_KEY_ESCAPE))
