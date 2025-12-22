@@ -48,7 +48,6 @@ int main()
 
 	// build and compile our shader program
 	Shader shader("src/Shaders/default.vert", "src/Shaders/default.frag");
-	Shader lightShader("src/Shaders/light.vert", "src/Shaders/light.frag");
 
 	float vertices[] = {
 		// COORDINATES      // COLORS           // TexCoord  //NORMALS
@@ -110,102 +109,10 @@ int main()
 	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, (11 * sizeof(float)), (void*)(3 * sizeof(float)));
 	glEnableVertexAttribArray(1);
 
-	// texture coords
-	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, (11 * sizeof(float)), (void*)(6 * sizeof(float)));
-	glEnableVertexAttribArray(2);
-
-	// normals
-	glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, (11 * sizeof(float)), (void*)(8 * sizeof(float)));
-	glEnableVertexAttribArray(3);
-
 	// unbind
 	glBindVertexArray(0);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-
-	// light
-	float lightVertices[] = {
-		//     COORDINATES     //
-		-0.1f, -0.1f, 0.1f, //
-		-0.1f, -0.1f, -0.1f, //
-		0.1f,  -0.1f, -0.1f, //
-		0.1f,  -0.1f, 0.1f, //
-		-0.1f, 0.1f,  0.1f, //
-		-0.1f, 0.1f,  -0.1f, //
-		0.1f,  0.1f,  -0.1f, //
-		0.1f,  0.1f,  0.1f, //
-	};
-
-	unsigned int lightIndices[] = {
-		0, 1, 2, //
-		0, 2, 3, //
-		0, 4, 7, //
-		0, 7, 3, //
-		3, 7, 6, //
-		3, 6, 2, //
-		2, 6, 5, //
-		2, 5, 1, //
-		1, 5, 4, //
-		1, 4, 0, //
-		4, 5, 6, //
-		4, 6, 7, //
-	};
-
-	unsigned int lightVAO;
-	unsigned int lightVBO;
-	unsigned int lightEBO;
-
-	// generate
-	glGenVertexArrays(1, &lightVAO);
-	glGenBuffers(1, &lightVBO);
-	glGenBuffers(1, &lightEBO);
-
-	// bind - data
-	glBindVertexArray(lightVAO);
-
-	glBindBuffer(GL_ARRAY_BUFFER, lightVBO);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(lightVertices), lightVertices, GL_STATIC_DRAW);
-
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, lightEBO);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(lightIndices), lightIndices, GL_STATIC_DRAW);
-
-	// attributes
-	// position
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, (3 * sizeof(float)), (void*)0);
-	glEnableVertexAttribArray(0);
-
-	// unbind
-	glBindVertexArray(0);
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-
-	glm::vec4 lightColor = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
-
-	// texture
-	unsigned int texture;
-	glGenTextures(1, &texture);
-	glBindTexture(GL_TEXTURE_2D, texture);
-
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-	int texture_width;
-	int texture_height;
-	int nrChannels;
-
-	unsigned char* data = stbi_load("texture/wall.jpg", &texture_width, &texture_height, &nrChannels, 0);
-	if(data)
-	{
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, texture_width, texture_height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
-		glGenerateMipmap(GL_TEXTURE_2D);
-	}
-	else
-	{
-		std::cout << "Failed to load texture" << std::endl;
-	}
-	stbi_image_free(data);
 
 	shader.use();
 	glUniform1i(glGetUniformLocation(shader.ID, "texture1"), 0);
@@ -214,9 +121,8 @@ int main()
 
 	Camera camera(width, height, glm::vec3(0.0f, 0.0f, 2.0f));
 
-	float speed = 0.5f;
-	float radius = 1.0f;
-	float angle = 0.0f;
+	glm::mat4 model = glm::mat4(1.0f);
+	glUniformMatrix4fv(glGetUniformLocation(shader.ID, "model"), 1, GL_FALSE, glm::value_ptr(model));
 
 	double lastTime = glfwGetTime();
 
@@ -231,42 +137,14 @@ int main()
 		glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, texture);
-
 		// render
 		camera.Inputs(window, deltaTime);
 		camera.updateMatrix(45.0f, 0.1f, 100.0f);
 
-		glm::vec3 lightPos = glm::vec3(0.0, 0.5f, 0.0f);
-
-		lightPos.x = std::cos(angle) * radius;
-		lightPos.z = std::sin(angle) * radius;
-
-		glm::mat4 lightModel = glm::mat4(1.0f);
-		lightModel = glm::translate(lightModel, lightPos);
-
-		glm::vec3 pyramidPos = glm::vec3(0.0f, 0.0f, 0.0f);
-		glm::mat4 pyramidModel = glm::mat4(1.0f);
-		pyramidModel = glm::translate(pyramidModel, pyramidPos);
-
-		shader.use();
-		glUniformMatrix4fv(glGetUniformLocation(shader.ID, "model"), 1, GL_FALSE, glm::value_ptr(pyramidModel));
-		glUniform4f(glGetUniformLocation(shader.ID, "lightColor"), lightColor.x, lightColor.y, lightColor.z, lightColor.w);
-		glUniform3f(glGetUniformLocation(shader.ID, "lightPos"), lightPos.x, lightPos.y, lightPos.z);
-		glUniform3f(glGetUniformLocation(shader.ID, "camPos"), camera.position.x, camera.position.y, camera.position.z);
 		camera.Matrix(shader, "camMatrix");
+
 		glBindVertexArray(VAO);
 		glDrawElements(GL_TRIANGLES, sizeof(indices) / sizeof(unsigned int), GL_UNSIGNED_INT, 0);
-
-		lightShader.use();
-		glUniformMatrix4fv(glGetUniformLocation(lightShader.ID, "model"), 1, GL_FALSE, glm::value_ptr(lightModel));
-		glUniform4f(glGetUniformLocation(lightShader.ID, "lightColor"), lightColor.x, lightColor.y, lightColor.z, lightColor.w);
-		camera.Matrix(lightShader, "camMatrix");
-		glBindVertexArray(lightVAO);
-		glDrawElements(GL_TRIANGLES, sizeof(lightIndices) / sizeof(unsigned int), GL_UNSIGNED_INT, 0);
-
-		angle += speed * deltaTime;
 
 		// check and call events and swap the buffers
 		glfwSwapBuffers(window);
@@ -282,7 +160,6 @@ int main()
 
 	// delete shaders;
 	shader.deleteProgram();
-	lightShader.deleteProgram();
 
 	// clearing all previously allocated GLFW resources
 	glfwTerminate();
