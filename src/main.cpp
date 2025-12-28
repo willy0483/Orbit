@@ -13,12 +13,55 @@
 
 #include "shader.h"
 #include "camera.h"
+#include "mesh.h"
+
+// todo add chunk add occlusion culling
 
 const unsigned int width = 800;
 const unsigned int height = 600;
 
+glm::vec3 unitVertices[8] = {
+	glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f, 0.0f, 0.0f), //
+	glm::vec3(1.0f, 1.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), //
+	glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(1.0f, 0.0f, 1.0f), //
+	glm::vec3(1.0f, 1.0f, 1.0f), glm::vec3(0.0f, 1.0f, 1.0f), //
+};
+
+unsigned int faceVertices[6][4] = {
+	{ 3, 2, 6, 7 }, //
+	{ 1, 0, 4, 5 }, //
+	{ 4, 0, 3, 7 }, //
+	{ 1, 5, 6, 2 }, //
+	// FRONT (0, 1, 2, 3)
+	{ 0, 1, 2, 3 }, //
+	// BACK (5, 4, 7, 6)
+	{ 5, 4, 7, 6 }, //
+};
+
+glm::vec3 colors[6] = {
+	glm::vec3(1.0f, 0.0f, 0.0f), // red
+	glm::vec3(0.0f, 1.0f, 0.0f), // green
+	glm::vec3(0.0f, 0.0f, 1.0f), // blue
+	glm::vec3(1.0f, 1.0f, 0.0f), // yellow
+	glm::vec3(1.0f, 0.0f, 1.0f), // magenta
+	glm::vec3(0.0f, 1.0f, 1.0f) // cyan
+};
+
+enum Face
+{
+	TOP = 0x01, // 0000 0001
+	BOTTOM = 0x02, // 0000 0010
+	LEFT = 0x04, // 0000 0100
+	RIGHT = 0x08, // 0000 1000
+	FRONT = 0x10, // 0001 0000
+	BACK = 0x20 // 0010 0000
+};
+
 void processInput(GLFWwindow* window);
 void framebuffer_size_callback(GLFWwindow*, int width, int height);
+
+int face_to_index(Face face);
+void load_face(glm::vec3 position, Face face, std::vector<Vertex>& vertices, std::vector<unsigned int>& indices);
 
 int main()
 {
@@ -49,78 +92,31 @@ int main()
 	// build and compile our shader program
 	Shader shader("src/Shaders/default.vert", "src/Shaders/default.frag");
 
-	float vertices[] = {
-		// COORDINATES      // COLORS           // TexCoord  //NORMALS
-		-0.5f, 0.0f, 0.5f,	0.83f, 0.70f, 0.44f, 0.0f, 0.0f, 0.0f,	-1.0f, 0.0f, // Bottom side
-		-0.5f, 0.0f, -0.5f, 0.83f, 0.70f, 0.44f, 0.0f, 5.0f, 0.0f,	-1.0f, 0.0f, // Bottom side
-		0.5f,  0.0f, -0.5f, 0.83f, 0.70f, 0.44f, 5.0f, 5.0f, 0.0f,	-1.0f, 0.0f, // Bottom side
-		0.5f,  0.0f, 0.5f,	0.83f, 0.70f, 0.44f, 5.0f, 0.0f, 0.0f,	-1.0f, 0.0f, // Bottom side
+	Mesh test;
 
-		-0.5f, 0.0f, 0.5f,	0.83f, 0.70f, 0.44f, 0.0f, 0.0f, -0.8f, 0.5f,  0.0f, // Left Side
-		-0.5f, 0.0f, -0.5f, 0.83f, 0.70f, 0.44f, 5.0f, 0.0f, -0.8f, 0.5f,  0.0f, // Left Side
-		0.0f,  0.8f, 0.0f,	0.92f, 0.86f, 0.76f, 2.5f, 5.0f, -0.8f, 0.5f,  0.0f, // Left Side
+	for(int x = 0; x < 5; x++)
+	{
+		for(int y = 0; y < 5; y++)
+		{
+			for(int z = 0; z < 5; z++)
+			{
+				load_face(glm::vec3(x, y, z), Face::RIGHT, test.vertices, test.indices);
+				load_face(glm::vec3(x, y, z), Face::LEFT, test.vertices, test.indices);
+				load_face(glm::vec3(x, y, z), Face::TOP, test.vertices, test.indices);
+				load_face(glm::vec3(x, y, z), Face::BOTTOM, test.vertices, test.indices);
+				load_face(glm::vec3(x, y, z), Face::BACK, test.vertices, test.indices);
+				load_face(glm::vec3(x, y, z), Face::FRONT, test.vertices, test.indices);
+			}
+		}
+	}
 
-		-0.5f, 0.0f, -0.5f, 0.83f, 0.70f, 0.44f, 5.0f, 0.0f, 0.0f,	0.5f,  -0.8f, // Non-facing side
-		0.5f,  0.0f, -0.5f, 0.83f, 0.70f, 0.44f, 0.0f, 0.0f, 0.0f,	0.5f,  -0.8f, // Non-facing side
-		0.0f,  0.8f, 0.0f,	0.92f, 0.86f, 0.76f, 2.5f, 5.0f, 0.0f,	0.5f,  -0.8f, // Non-facing side
-
-		0.5f,  0.0f, -0.5f, 0.83f, 0.70f, 0.44f, 0.0f, 0.0f, 0.8f,	0.5f,  0.0f, // Right side
-		0.5f,  0.0f, 0.5f,	0.83f, 0.70f, 0.44f, 5.0f, 0.0f, 0.8f,	0.5f,  0.0f, // Right side
-		0.0f,  0.8f, 0.0f,	0.92f, 0.86f, 0.76f, 2.5f, 5.0f, 0.8f,	0.5f,  0.0f, // Right side
-
-		0.5f,  0.0f, 0.5f,	0.83f, 0.70f, 0.44f, 5.0f, 0.0f, 0.0f,	0.5f,  0.8f, // Facing side
-		-0.5f, 0.0f, 0.5f,	0.83f, 0.70f, 0.44f, 0.0f, 0.0f, 0.0f,	0.5f,  0.8f, // Facing side
-		0.0f,  0.8f, 0.0f,	0.92f, 0.86f, 0.76f, 2.5f, 5.0f, 0.0f,	0.5f,  0.8f // Facing side
-	};
-
-	unsigned int indices[] = {
-		0,	1,	2, // Bottom side
-		0,	2,	3, // Bottom side
-		4,	6,	5, // Left side
-		7,	9,	8, // Non-facing side
-		10, 12, 11, // Right side
-		13, 15, 14 // Facing side
-	};
-
-	unsigned int VAO;
-	unsigned int VBO;
-	unsigned int EBO;
-
-	// generate
-	glGenVertexArrays(1, &VAO);
-	glGenBuffers(1, &VBO);
-	glGenBuffers(1, &EBO);
-
-	// bind - data
-	glBindVertexArray(VAO);
-
-	glBindBuffer(GL_ARRAY_BUFFER, VBO);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
-
-	// attributes
-	// positions
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, (11 * sizeof(float)), (void*)0);
-	glEnableVertexAttribArray(0);
-
-	// color
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, (11 * sizeof(float)), (void*)(3 * sizeof(float)));
-	glEnableVertexAttribArray(1);
-
-	// unbind
-	glBindVertexArray(0);
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-
-	shader.use();
-	glUniform1i(glGetUniformLocation(shader.ID, "texture1"), 0);
+	test.SetUpMesh();
 
 	glEnable(GL_DEPTH_TEST);
 
 	Camera camera(width, height, glm::vec3(0.0f, 0.0f, 2.0f));
 
+	shader.use();
 	glm::mat4 model = glm::mat4(1.0f);
 	glUniformMatrix4fv(glGetUniformLocation(shader.ID, "model"), 1, GL_FALSE, glm::value_ptr(model));
 
@@ -137,14 +133,16 @@ int main()
 		glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+		shader.use();
 		// render
 		camera.Inputs(window, deltaTime);
 		camera.updateMatrix(45.0f, 0.1f, 100.0f);
 
 		camera.Matrix(shader, "camMatrix");
 
-		glBindVertexArray(VAO);
-		glDrawElements(GL_TRIANGLES, sizeof(indices) / sizeof(unsigned int), GL_UNSIGNED_INT, 0);
+		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+		test.Draw();
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
 		// check and call events and swap the buffers
 		glfwSwapBuffers(window);
@@ -152,11 +150,6 @@ int main()
 
 		lastTime = currentTime;
 	}
-
-	// delete objects
-	glDeleteVertexArrays(1, &VAO);
-	glDeleteBuffers(1, &VBO);
-	glDeleteBuffers(1, &EBO);
 
 	// delete shaders;
 	shader.deleteProgram();
@@ -177,4 +170,46 @@ void processInput(GLFWwindow* window)
 void framebuffer_size_callback(GLFWwindow*, int width, int height)
 {
 	glViewport(0, 0, width, height);
+}
+
+int face_to_index(Face face)
+{
+	switch(face)
+	{
+		case Face::TOP:
+			return 0;
+		case Face::BOTTOM:
+			return 1;
+		case Face::LEFT:
+			return 2;
+		case Face::RIGHT:
+			return 3;
+		case Face::FRONT:
+			return 4;
+		case Face::BACK:
+			return 5;
+		default:
+			return -1; // Or some error code
+	}
+}
+
+void load_face(glm::vec3 position, Face face, std::vector<Vertex>& vertices, std::vector<unsigned int>& indices)
+{
+	unsigned int indexOffset = vertices.size();
+	for(int i = 0; i < 4; i++)
+	{
+		unsigned int vIndex = faceVertices[face_to_index(face)][i];
+		Vertex v;
+		v.position = unitVertices[vIndex] + position;
+		v.color = colors[face_to_index(face)];
+		vertices.push_back(v);
+	}
+
+	// Append indices for the specified face (two triangles)
+	indices.push_back(indexOffset);
+	indices.push_back(indexOffset + 1);
+	indices.push_back(indexOffset + 2);
+	indices.push_back(indexOffset);
+	indices.push_back(indexOffset + 2);
+	indices.push_back(indexOffset + 3);
 }
